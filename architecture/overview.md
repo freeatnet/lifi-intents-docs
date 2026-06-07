@@ -55,7 +55,6 @@ Any validation layer can be added as long as it supports validating a payload fr
 
 * [**Polymer**](https://github.com/openintentsframework/oif-contracts/blob/main/src/oracles/polymer/PolymerOracleMapped.sol)
 * [**Wormhole**](https://github.com/openintentsframework/oif-contracts/blob/main/src/oracles/wormhole/WormholeOracle.sol)
-* [**Bitcoin**](https://github.com/openintentsframework/oif-contracts/blob/main/src/oracles/bitcoin/BitcoinOracle.sol)
 
 Before emitting messages, the oracle is expected to check if one or more payloads are valid and then ship them to the input chain:
 
