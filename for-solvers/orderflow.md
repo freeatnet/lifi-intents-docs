@@ -1,0 +1,127 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.li.fi/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Collecting Orders
+
+> LI.FI Intents delivers real-time order streams and on-chain discovery, ensuring you never miss a cross-chain fill and enabling proactive, data-driven solver strategies.
+
+The order server is a helpful intermediary that allows users to submit intents (orders) and broadcasts those intents to solvers. It serves as a central hub that:
+
+1. Collects user intents from various sources.
+2. Broadcasts these intents to connected solvers in real-time.
+3. Tracks the on-chain status of all transactions.
+
+<Note>
+  While the order server is the recommended integration surface due to its built in security aids, it is important to note that – *for on-chain orders* – the order server **is entirely optional**. However, not all intents are emitted on-chain and [lintent.org](https://lintent.org) does not emit intents on-chain. Intents emitted on-chain needs to be hydrated and very thoroughly validated.
+</Note>
+
+## Order subscription
+
+There are 2 ways to collect orders. Either through a websocket subscription where orders will be pushed or via a GET endpoint. It is recommended to get orders pushed via the websocket subscription. Both methods can be found in the [lintent.org](https://lintent.org) demo [implementation](https://github.com/lifinance/lintent/blob/a4aa78cd058cade732b73d83aa2843dd4e9ea24d/src/lib/utils/api.ts#L75-L114).
+
+If you use the GET endpoint too aggressively, you may be throttled or temporarily timed out. You can find swagger documentation on api interfaces on [https://order-dev.li.fi/docs](https://order-dev.li.fi/docs).
+
+<Note>
+  You may receive the same order more than once through the WebSocket interface. This can happen every time an intent is ingested from a source of truth. Secondary emissions can contain additional context. When consuming WebSocket intents, use the orderId to identify intents.
+</Note>
+
+### Order Server events
+
+When connected to the order server, the order server will continuously send a ping messages to which the client is expected to respond with a `pong`. This is used to disconnect misbehaving clients and for debugging purposes. You can find an example [implementation here](https://github.com/lifinance/lintent/blob/a4aa78cd058cade732b73d83aa2843dd4e9ea24d/src/lib/utils/api.ts#L89-L95).
+
+For order collection, the important event is `user:vm-order-submit`. The Data will be returned similarly to it was [submitted](https://order-dev.li.fi/docs#:~:text=SubmitOrderDto).
+
+## Order Validation
+
+LI.FI Intents allows highly customizable orders. As a result, you should add further validation to ensure you support the order being relayed to you. It is important to properly validate orders.
+
+Below, the term whitelisted refers to trusted and validated by **you**. When a token *must* be whitelisted, it means **you** trust the token. If a validation layer is whitelisted, it means **you** trust the validation layer, etc. Whitelisted does not mean permissioned by a central entity; it means trusted by **you**.
+
+The following is an attempt at an exhaustive list of validations that solvers must implement. While this list may seem excessive, you have likely already implemented checks for most of these.
+
+### General Validation
+
+1. `fillDeadline`: Ensure you have sufficient time to fill the order:
+   * Time to fill on the destination chain, including potential source chain finality.
+2. `expiry`: Ensure you have enough time to fill, relay, and claim the order:
+   * Time to fill on the destination chain, including potential source chain finality.
+   * Time to send message validation proof to the input chain.
+   * Time to claim the order after validation has been delivered.
+3. Validation layer: Ensure you support submitting proofs (and, if not automatic, also relaying) to the validation layer. Additionally, the `inputOracle` and `output.oracle` must be of the same validation layer.
+4. Ensure you have whitelisted every `input` token. If one input token is malicious, the order may be unclaimable. Additionally, for blacklistable tokens like USDC, ensure you are not on a blacklist.
+   * If an order has a 0 input or output of a token you have not whitelisted, the order may not be fillable. Be careful about filling orders containing unfamiliar tokens.
+5. For each output:
+   1. `output.chainId` is whitelisted.
+   2. `output.oracle` and `inputOracle` are correctly configured regarding `originChainId` and `output.chainId`. On-chain configs are immutable, so this can be done once for each chain pair.
+   3. `output.settler` is whitelisted.
+   4. `output.context` is decodable, and the order type is supported and compatible with `output.settler`.
+   5. `output.token` is whitelisted. Additionally, for blacklistable tokens like USDC, ensure that neither you nor the recipient is on a blacklist.
+      * If an order has a 0 input or output of a token you have not whitelisted, the order may not be fillable. Be careful about filling orders containing unfamiliar tokens.
+   6. You have sufficient tokens for `output.amount`.
+   7. If the output has `calldata`, ensure you can execute it and other outputs atomically. For outputs on different chains, you may have to whitelist recipients if there is `calldata`.
+      * On OP-chains, [CrossL2Inbox](https://specs.optimism.io/interop/predeploys.html#validatemessage) needs to be blacklisted in the entire call tree. If similar contracts exist on another chain, they also need to be blacklisted.
+   8. Neither `call.length` nor `context.length` are more than 65'535 bytes long.
+   9. Validate the context depending on order type. For Bitcoin specifically, ensure the encoded multiplier is relative to the Bitcoin value.
+6. If the order has multiple outputs, ensure you can fill all outputs and the first output is set to your solver identifier. If all outputs are on the same chain, `fillBatch` can be used as a protective measure.
+7. If the InputSettler has any fees, check for an imminent fee change.
+
+<Note>
+  Tokens inputs are provided as uint256. This is a standard format for resource locks and cross-chain addresses. For EVM, the first 12 bytes represents a potential lock tag and the address is the last 20 bytes.
+</Note>
+
+### Escrow Validation
+
+1. Ensure no input tokens are fee on transfer.
+2. Ensure every `inputs` token has no set bits in its upper 12 bytes.
+3. Ensure the order has already been opened, either through the `event Open` or `function orderStatus` OR you are opening the order through `function openFor` before filling the order.
+
+### Compact Validation
+
+1. Ensure every `input` token uses the same AllocatorId. If the lockId are different, the lock expiry should be checked for every lockId. Alternatively, check if all lockIds are equal.
+2. Ensure the potential `reset period` for a resource lock extends beyond the `expiry` AND there is no active withdrawal.
+3. Ensure the `allocatorID` is whitelisted. The allocator can block claims from processing (by withdrawing signatures or reusing nonces.)
+   * The allocatorID is part of the `lock tag` for `inputs` (first 12 bytes).
+   * Optionally, ensure the user has sufficient tokens. This should have been validated by the allocator, though.
+4. Ensure the user provides an ECDSA signature **or** they have a whitelisted [emissary](/lifi-intents/knowledge-database/glossary#emissary) registered **or** you register the claim on-chain before filling the claim.
+   * Note: If any of these actions are taken, the signature can be assumed to be trusted.
+   * Emissary signatures cannot be registered on-chain. The emissary must be trusted not to redact a signature.
+5. Validate the `allocatorData`. You may have to do an on-chain call.
+6. Validate that the allocator `nonce` has not been spent previously by any user. The Order nonce is not a user nonce.
+
+### Signature Validation
+
+The `StandardOrder` will be used to interface all functions on the input chain. Additionally, once hydrated with a signature, it allows one to verify the validity of an order.
+
+The `StandardOrder` struct will be signed and stored as a witness in the appropriate lock/claim structure. For TheCompact, this is:
+
+```solidity theme={"system"}
+struct BatchCompact {
+    address arbiter; // Associated settlement contract
+    address sponsor; // StandardOrder.user
+    uint256 nonce; // StandardOrder.nonce
+    uint256 expires; // StandardOrder.expires
+    uint256[2][] idsAndAmounts; // StandardOrder.inputs
+    Mandate mandate;
+}
+
+struct Mandate {
+    uint32 fillDeadline; // StandardOrder.fillDeadline
+    address inputOracle; // StandardOrder.inputOracle
+    OutputDescription[] outputs; // StandardOrder.outputs
+}
+```
+
+To validate an order, ensure that the sponsor and allocator signatures are valid for this EIP-712 signed structure.
+
+#### On-chain Order Broadcast
+
+When intents are registered on-chain, they can be broadcasted on the Input Settlement contract through the [`IntentRegistered`](https://github.com/catalystsystem/catalyst-intent/blob/27ce0972c150ed113f66ae91069eb953f23d920b/src/input/compact/InputSettlerCompactLIFI.sol#L67) event:
+
+```solidity theme={"system"}
+event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
+```
+
+<Note>
+  When collecting permissionless orders, ensure they are properly validated and co-signed. The order server aids with validation, but on-chain, potential fraudulent messages can be emitted.
+</Note>

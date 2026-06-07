@@ -1,0 +1,151 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.li.fi/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Solving LI.FI Intents
+
+> LI.FI Intents gives you open order flow and permissionless solving. Direct access to cross-chain liquidity, fast settlement cycles, and flexible integration.
+
+As a solver in the cross-chain ecosystem, you're likely focused on:
+
+* Accessing reliable order flow
+* Minimizing user escrow unlock times to reduce inventory requirements
+* Having flexibility in your liquidity sources
+
+### How LI.FI Intents Help
+
+* **Direct access to [LI.FI](http://li.fi/)'s significant order flow**
+* **Freedom to use any liquidity source** for solving (e.g., DEXs, CEXs, or your own inventory)
+* **Fast user escrow unlock times** (typically less than 2 minutes)
+* **Lower capital requirements** due to quick repayment cycles
+
+## Solving Intents
+
+LI.FI Intents is an entirely permissionless system. Since the system is componentized and components have no inherent trust elements with other components, they can be mixed and matched as desired by users. As a result, it is important that you validate orders in their entirety once received. The general flow is:
+
+1. The sponsor signs the LI.FI intent-compatible lock and sends it to the LI.FI order server.
+
+2. The LI.FI order server preliminarily validates the order and obtains the allocator co-signature for the order. It is then broadcasted to solvers.
+
+3. A solver submits the order's output to the output settlement contract, starting the oracle system.
+
+   <Note>
+     [Output Settlement](/lifi-intents/architecture/output-settlement)
+     is denoted as the `output.settler`.
+   </Note>
+
+4. The proof is delivered to the input chain through the validation layer.
+
+   <Note>
+     [Oracle system](/lifi-intents/architecture/oracle-systems)
+     is denoted as the `localOracle` and `output.oracle` in the order struct.
+   </Note>
+
+5. The solver submits the order to the input settlement contract, verifying the delivery and unlocking the associated input tokens.
+
+### Order Types
+
+LI.FI uses three order structures, listed from least to most verbose:
+
+1. `BatchClaim`: A signed intent that allows for claiming input assets.
+2. `StandardOrder`: An on-chain definition containing enough information to convey the intent.
+3. Order Server response: A hydrated order with additional information that may be helpful to solvers.
+
+Unless you are verifying order signatures, you won't interact with `BatchClaim`. All on-chain interactions use `StandardOrder` to standardize interfaces. However, `StandardOrder` does not contain enough information to fill intents. As a result, it is hydrated off-chain with `InputSolver`, `signatures`, and more.
+
+### Collecting Orders
+
+LI.FI Intents offers two ways to receive orders:
+
+1. **Recommended**: Connect to the order server via WebSocket.
+2. **Alternative**: Monitor on-chain deposits through the deposit interface.
+
+The order server is the recommended integration surface for most solvers. However, if you are interested in the lowest latency, decentralized, and permissionless order discovery, you can read some orders on-chain. Not all orders will be discoverable on-chain. From either source, you will receive a `StandardOrder` and other fill details to be submitted across all VMs:
+
+```solidity theme={"system"}
+struct StandardOrder {
+    address user;
+    uint256 nonce;
+    uint256 originChainId;
+    uint32 expires;
+    uint32 fillDeadline;
+    address inputOracle;
+    uint256[2][] inputs;
+    MandateOutput[] outputs;
+}
+```
+
+Where `uint256[2][] inputs === [uint256 tokenId, uint256 amount][]` and `MandateOutput` is:
+
+```solidity theme={"system"}
+struct MandateOutput {
+    bytes32 oracle;
+    bytes32 settler;
+    uint256 chainId;
+    bytes32 token;
+    uint256 amount;
+    bytes32 recipient;
+    bytes call;
+    bytes context;
+}
+```
+
+For more information on collecting orders, [View Order Collection Guide →](/lifi-intents/for-solvers/orderflow)
+
+## Filling Intents
+
+To fill intents, all `MandateOutput`s must be executed. Each `MandateOutput` is a self-contained execution description.
+
+* `output.settler` defines the execution with its associated context and should be called on its interface. Currently, only one OutputSettler is implemented: [`OutputSettlerSimple.sol`](https://github.com/openintentsframework/oif-contracts/blob/main/src/output/simple/OutputSettlerSimple.sol), which has two interfaces for filling:
+
+```solidity theme={"system"}
+/// @notice For implementing own batching functionality
+function fill(
+    uint32 fillDeadline,
+    bytes32 orderId,
+    MandateOutput calldata output,
+    bytes32 proposedSolver
+) external returns (bytes32 actualSolver);
+
+/// @notice For batch filling entire orders.
+function fillOrderOutputs(
+    uint32 fillDeadline,
+    bytes32 orderId,
+    MandateOutput[] calldata outputs,
+    bytes32 proposedSolver
+) external;
+```
+
+For more information about filling intents [View Filling Orders Guide →](/lifi-intents/for-solvers/filling-orders)
+
+## Validating Fills
+
+After filling intents, the proof of fill has to be sent to the input chain. The oracle system used for the order is specified through `localOracle` and `output.oracle`. These should match. However, validating filled outputs is highly oracle specific. For more, see [Oracle System Architecture](/lifi-intents/architecture/oracle-systems#implemented-validation-interfaces).
+
+## Settling Orders
+
+Lastly, intents have to be settled before their expiry. This is achieved by calling `finalise[withSignature]` on the designated InputSettler. The caller has to be the designated solver set on fill.
+
+```solidity theme={"system"}
+struct SolveParams(
+    uint32 timestamp;
+    bytes32 solver;
+)
+// For the Compact Input Settler
+function finalise(
+    StandardOrder calldata order,
+    bytes calldata signatures,
+    SolveParams[] calldata solveParams,
+    bytes32 destination,
+    bytes calldata call
+) external;
+// Or for the Escrow Input Settler
+function finalise(
+    StandardOrder calldata order,
+    SolveParams[] calldata solveParams,
+    bytes32 destination,
+    bytes calldata call
+) external;
+```
+
+For more information about settling orders [View Order Settlement Guide →](/lifi-intents/for-solvers/settlement)
