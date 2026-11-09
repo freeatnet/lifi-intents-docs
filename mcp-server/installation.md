@@ -105,9 +105,9 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 }
 ```
 
-<Note>
-  Windsurf uses `serverUrl` instead of `url`.
-</Note>
+> [!NOTE]
+>
+> Windsurf uses `serverUrl` instead of `url`.
 
 ## VS Code (GitHub Copilot)
 
@@ -144,9 +144,9 @@ Add to `.vscode/mcp.json` in your project:
 3. **Sign the order** using EIP-712 typed data signing with your wallet (e.g. viem, ethers.js)
 4. `submit-order` — submit the signed order to the order server
 
-<Note>
-  All orders require gas. The signer pays gas on the source chain to initiate the cross-chain escrow.
-</Note>
+> [!NOTE]
+>
+> All orders require gas. The signer pays gas on the source chain to initiate the cross-chain escrow.
 
 ## Auto-Signing (Local Server)
 
@@ -159,9 +159,9 @@ If you want the server to sign orders on your behalf, you can run the MCP server
 2. Start the local server — it will use the key to automatically sign orders during `prepare-order`
 3. Connect your MCP client to `http://localhost:3000/mcp` instead of the hosted URL
 
-<Warning>
-  Never share your private key or commit it to version control. The local server should only be used in trusted environments.
-</Warning>
+> [!WARNING]
+>
+> Never share your private key or commit it to version control. The local server should only be used in trusted environments.
 
 ## Testing Your Setup
 
@@ -176,3 +176,6 @@ To verify solver tools are enabled, try:
 > "Show my registered solver identities"
 
 If your API key is configured correctly, the tool will call `get-solver-identities` and return your registered addresses.
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

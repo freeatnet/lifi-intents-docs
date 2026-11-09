@@ -14,3 +14,6 @@ LI.FI strives to support and contribute to existing and upcoming intent standard
 * Working with the Ethereum Foundation on building a modular and flexible intent framework for emerging chains through the [Open Intents Framework (OIF)](https://github.com/openintentsframework/oif-contracts).
 
 * By submitting feedback on [ERC-7683](https://www.erc7683.org/) and paving a road for ERC-7683 integration into LI.FI intents.
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

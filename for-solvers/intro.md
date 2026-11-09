@@ -4,54 +4,45 @@
 
 # Solving LI.FI Intents
 
-> LI.FI Intents gives you open order flow and permissionless solving. Direct access to cross-chain liquidity, fast settlement cycles, and flexible integration.
-
-As a solver in the cross-chain ecosystem, you're likely focused on:
-
-* Accessing reliable order flow
-* Minimizing user escrow unlock times to reduce inventory requirements
-* Having flexibility in your liquidity sources
-
-### How LI.FI Intents Help
-
-* **Direct access to [LI.FI](http://li.fi/)'s significant order flow**
-* **Freedom to use any liquidity source** for solving (e.g., DEXs, CEXs, or your own inventory)
-* **Fast user escrow unlock times** (typically less than 2 minutes)
-* **Lower capital requirements** due to quick repayment cycles
+> Learn how to receive, validate, fill, prove, and settle LI.FI intent orders.
 
 ## Solving Intents
 
-LI.FI Intents is an entirely permissionless system. Since the system is componentized and components have no inherent trust elements with other components, they can be mixed and matched as desired by users. As a result, it is important that you validate orders in their entirety once received. The general flow is:
+LI.FI Intents separates order discovery, filling, proving, and settlement. Validate every order and every component address before committing inventory. The general flow is:
 
-1. The sponsor signs the LI.FI intent-compatible lock and sends it to the LI.FI order server.
+1. The user opens an escrow order on-chain or signs an EVM Compact order for submission to the LI.FI order server.
 
-2. The LI.FI order server preliminarily validates the order and obtains the allocator co-signature for the order. It is then broadcasted to solvers.
+2. The order server validates and broadcasts the order. Compact orders also require the allocator's co-signature.
 
 3. A solver submits the order's output to the output settlement contract, starting the oracle system.
 
-   <Note>
-     [Output Settlement](/lifi-intents/architecture/output-settlement)
-     is denoted as the `output.settler`.
-   </Note>
+   > [!NOTE]
+   >
+   > [Output Settlement](https://docs.li.fi/lifi-intents/architecture/settlement.md#output-settlement)
+   > is denoted as the `output.settler`.
 
 4. The proof is delivered to the input chain through the validation layer.
 
-   <Note>
-     [Oracle system](/lifi-intents/architecture/oracle-systems)
-     is denoted as the `localOracle` and `output.oracle` in the order struct.
-   </Note>
+   > [!NOTE]
+   >
+   > [Oracle system](https://docs.li.fi/lifi-intents/architecture/oracle-systems.md)
+   > is denoted as the `inputOracle` and `output.oracle` in the order struct.
 
 5. The solver submits the order to the input settlement contract, verifying the delivery and unlocking the associated input tokens.
 
 ### Order Types
 
-LI.FI uses three order structures, listed from least to most verbose:
+For EVM Compact orders, you will meet an order in three forms, listed from least to most verbose:
 
-1. `BatchClaim`: A signed intent that allows for claiming input assets.
+1. `BatchClaim`: A signed intent that allows the input assets to be claimed.
 2. `StandardOrder`: An on-chain definition containing enough information to convey the intent.
-3. Order Server response: A hydrated order with additional information that may be helpful to solvers.
+3. Order server response: a **hydrated** order — the `StandardOrder` plus the off-chain fields a solver needs, such as `InputSolver` and `signatures`.
 
-Unless you are verifying order signatures, you won't interact with `BatchClaim`. All on-chain interactions use `StandardOrder` to standardize interfaces. However, `StandardOrder` does not contain enough information to fill intents. As a result, it is hydrated off-chain with `InputSolver`, `signatures`, and more.
+Unless you are verifying Compact signatures, you won't interact with `BatchClaim`. On-chain interactions use a `StandardOrder`, while the order server hydrates it with the off-chain fields needed for a fill.
+
+> [!NOTE]
+>
+> Solana also uses `StandardOrder`, but its Borsh structure carries exactly one input and uses Solana-native types. See [Solana vs EVM](https://docs.li.fi/lifi-intents/knowledge-database/solana-deltas.md) for the structural and execution differences.
 
 ### Collecting Orders
 
@@ -60,7 +51,7 @@ LI.FI Intents offers two ways to receive orders:
 1. **Recommended**: Connect to the order server via WebSocket.
 2. **Alternative**: Monitor on-chain deposits through the deposit interface.
 
-The order server is the recommended integration surface for most solvers. However, if you are interested in the lowest latency, decentralized, and permissionless order discovery, you can read some orders on-chain. Not all orders will be discoverable on-chain. From either source, you will receive a `StandardOrder` and other fill details to be submitted across all VMs:
+Most solvers should use the order server. But if you want the lowest latency, or you want order discovery to stay decentralized and permissionless, you can read some orders directly on-chain — though not every order is discoverable that way. The EVM `StandardOrder` representation is:
 
 ```solidity theme={"system"}
 struct StandardOrder {
@@ -90,13 +81,13 @@ struct MandateOutput {
 }
 ```
 
-For more information on collecting orders, [View Order Collection Guide →](/lifi-intents/for-solvers/orderflow)
+For more information on collecting orders, [View Order Collection Guide →](https://docs.li.fi/lifi-intents/for-solvers/orderflow.md)
 
 ## Filling Intents
 
-To fill intents, all `MandateOutput`s must be executed. Each `MandateOutput` is a self-contained execution description.
+To fill an intent, you must execute every `MandateOutput`. Each one describes a single delivery completely on its own.
 
-* `output.settler` defines the execution with its associated context and should be called on its interface. Currently, only one OutputSettler is implemented: [`OutputSettlerSimple.sol`](https://github.com/openintentsframework/oif-contracts/blob/main/src/output/simple/OutputSettlerSimple.sol), which has two interfaces for filling:
+* `output.settler` defines that delivery together with its context — call it on the settler's interface. Currently, only one OutputSettler is implemented: [`OutputSettlerSimple.sol`](https://github.com/openintentsframework/oif-contracts/blob/main/src/output/simple/OutputSettlerSimple.sol), which has two interfaces for filling:
 
 ```solidity theme={"system"}
 /// @notice For implementing own batching functionality
@@ -116,15 +107,17 @@ function fillOrderOutputs(
 ) external;
 ```
 
-For more information about filling intents [View Filling Orders Guide →](/lifi-intents/for-solvers/filling-orders)
+On Solana, there is no batch fill: each output is filled with its own `fill` (or `native_fill` for SOL) instruction — see the [Solana program reference](https://docs.li.fi/lifi-intents/architecture/solana-programs.md#fills). For a multi output intent, please ensure all outputs can be filled, ideally atomically.
+
+The output-settlement architecture and interfaces are documented in [Settlement](https://docs.li.fi/lifi-intents/architecture/settlement.md#output-settlement).
 
 ## Validating Fills
 
-After filling intents, the proof of fill has to be sent to the input chain. The oracle system used for the order is specified through `localOracle` and `output.oracle`. These should match. However, validating filled outputs is highly oracle specific. For more, see [Oracle System Architecture](/lifi-intents/architecture/oracle-systems#implemented-validation-interfaces).
+After filling intents, the proof of fill has to be sent to the input chain. `inputOracle` and `output.oracle` must identify the two supported ends of the same oracle route, but they are not always the same address. On Solana, one field may hold a program ID while the other holds a state PDA. Proof validation is oracle-specific; see [Oracle System Architecture](https://docs.li.fi/lifi-intents/architecture/oracle-systems.md#implemented-validation-interfaces).
 
 ## Settling Orders
 
-Lastly, intents have to be settled before their expiry. This is achieved by calling `finalise[withSignature]` on the designated InputSettler. The caller has to be the designated solver set on fill.
+Lastly, intents have to be settled before they expire. Settle by calling `finalise[withSignature]` on the designated InputSettler. The caller has to be the designated solver set on fill.
 
 ```solidity theme={"system"}
 struct SolveParams(
@@ -148,4 +141,7 @@ function finalise(
 ) external;
 ```
 
-For more information about settling orders [View Order Settlement Guide →](/lifi-intents/for-solvers/settlement)
+For more information about settling orders [View Order Settlement Guide →](https://docs.li.fi/lifi-intents/for-solvers/settlement.md)
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

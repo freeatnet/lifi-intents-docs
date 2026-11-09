@@ -17,7 +17,7 @@ A full order lifecycle from quote to settlement:
 2. request-quote                 # Get pricing (chain names, symbols, or IDs all work)
 3. prepare-order                 # Build order, auto-sign if key is configured
 4. submit-order                  # Submit to order server
-5. track-order                   # Monitor: Submitted -> Open -> Signed -> Delivered -> Settled
+5. track-order                   # Monitor: Signed -> Delivered -> Settled
 ```
 
 ### Solver Operations
@@ -25,7 +25,7 @@ A full order lifecycle from quote to settlement:
 Managing your solver presence and diagnosing issues:
 
 ```
-1. register-solver               # Register wallet for reputation tracking
+1. register-solver               # Register wallet for reputation tracking (coming soon — see Tools)
 2. submit-standing-quotes        # Publish pricing for routes
 3. get-quote-inventory           # Audit your published quotes
 4. check-route-health            # Diagnose why orders aren't being filled
@@ -66,7 +66,7 @@ Returns available chain + token pairs with fees, activity status, and supported 
 
 **Prompt:** "Check the health of the Ethereum Sepolia to Base Sepolia USDC route"
 
-**Tool called:** `check-route-health` — runs composite diagnostics including route support, quote inventory, and recent activity. Useful for diagnosing why orders aren't being filled.
+**Tool called:** `check-route-health` — checks several things at once: route support, quote inventory, and recent activity. Useful for diagnosing why orders aren't being filled.
 
 ### Debug an Order
 
@@ -88,10 +88,10 @@ Once deposited, a solver picks up the order, delivers tokens on the destination 
 
 ### Step 1: Token Approval
 
-Approve the escrow settler contract to spend your input token. The escrow settler address is the same on all chains:
+Approve the escrow settler contract to spend your input token. On the supported EVM chains, the escrow settler uses the same address:
 
 ```
-0x000025c3226C00B2Cdc200005a1600509f4e00C0
+0x00fC00edbe7C003b006f870068c548940000223e
 ```
 
 Using viem/TypeScript:
@@ -101,7 +101,7 @@ import { createWalletClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains"; // or baseSepolia for testnet
 
-const account = privateKeyToAccount("0xYOUR_PRIVATE_KEY");
+const account = privateKeyToAccount("0x<YOUR_PRIVATE_KEY>");
 const client = createWalletClient({ account, chain: mainnet, transport: http("YOUR_RPC_URL") });
 
 const tx = await client.writeContract({
@@ -109,7 +109,7 @@ const tx = await client.writeContract({
   abi: parseAbi(["function approve(address spender, uint256 amount) returns (bool)"]),
   functionName: "approve",
   args: [
-    "0x000025c3226C00B2Cdc200005a1600509f4e00C0", // escrow settler
+    "0x00fC00edbe7C003b006f870068c548940000223e", // escrow settler
     BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), // max approval
   ],
 });
@@ -136,7 +136,7 @@ import { encodeFunctionData, createWalletClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
 
-const ESCROW_SETTLER = "0x000025c3226C00B2Cdc200005a1600509f4e00C0";
+const ESCROW_SETTLER = "0x00fC00edbe7C003b006f870068c548940000223e";
 
 // The order object from prepare-order — pass the full encoded order bytes
 const tx = await client.sendTransaction({
@@ -155,16 +155,19 @@ Once the escrow is funded:
 
 1. **Solver sees the deposit** and delivers tokens on the destination chain
 2. **Settlement** happens automatically via the Polymer oracle
-3. **Order status** progresses: `Signed -> Deposited -> Delivered -> Settled`
+3. **Order status** progresses: `Signed -> Delivered -> Settled`
 
 Use `track-order` to monitor the full lifecycle. A typical mainnet settlement takes \~10 minutes.
 
 ### Testnet vs Mainnet
 
-|                         | Testnet                                                            | Mainnet                                    |
-| ----------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
-| **Chains**              | Ethereum Sepolia, Base Sepolia, Optimism Sepolia, Arbitrum Sepolia | Ethereum, Base, Arbitrum, Optimism, + more |
-| **Tokens**              | Testnet USDC, testnet WETH                                         | Real USDC, WETH, ETH, etc.                 |
-| **Solver availability** | Limited — may not have active solvers                              | Active solvers filling orders              |
-| **RPC**                 | Public Sepolia RPCs work                                           | Use Alchemy/Infura for reliability         |
-| **MCP URL**             | `https://intents-mcp-testnet.li.fi/mcp`                            | `https://intents-mcp.li.fi/mcp`            |
+| | Testnet | Mainnet |
+| - | - | - |
+| **Chains** | Ethereum Sepolia, Base Sepolia, Optimism Sepolia, Arbitrum Sepolia | Ethereum, Base, Arbitrum, Optimism, + more |
+| **Tokens** | Testnet USDC, testnet WETH | Real USDC, WETH, ETH, etc. |
+| **Solver availability** | Limited — may not have active solvers | Active solvers filling orders |
+| **RPC** | Public Sepolia RPCs work | Use Alchemy/Infura for reliability |
+| **MCP URL** | `https://intents-mcp-testnet.li.fi/mcp` | `https://intents-mcp.li.fi/mcp` |
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.
