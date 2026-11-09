@@ -6,13 +6,13 @@
 
 > Connect AI tools to LI.FI Intents cross-chain escrow orders and solver operations via the Model Context Protocol
 
-The LI.FI Intents MCP Server integrates with the [LI.FI Intents API](https://docs.li.fi/intents) to provide cross-chain escrow order management and solver operations via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/).
+The LI.FI Intents MCP Server connects to the [LI.FI Intents API](https://docs.li.fi/lifi-intents/introduction.md) so AI tools can manage cross-chain escrow orders and run solver operations over the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/).
 
-Built for **solver operators** — replaces the manual [Lintent.org](https://lintent.org) UI workflow with programmatic access to quote management, order lifecycle, and route diagnostics.
+Built for **solver operators**: instead of clicking through the [Lintent.org](https://lintent.org) UI, you manage quotes, drive orders through their lifecycle, and diagnose routes in code.
 
-<Warning>
-  Unlike the general [LI.FI MCP server](/mcp-server/overview) (read-only quotes and routing), this server performs **write operations** — it submits signed orders, registers solvers, and manages standing quotes. The hosted server never holds private keys.
-</Warning>
+> [!WARNING]
+>
+> Unlike the general [LI.FI MCP server](https://docs.li.fi/mcp-server/overview.md) (read-only quotes and routing), this server performs **write operations** — it submits signed orders and manages standing quotes (solver registration is planned). The hosted server never holds private keys.
 
 ## Quickstart
 
@@ -32,13 +32,13 @@ Add the hosted LI.FI Intents MCP server to your AI tool. No installation require
 }
 ```
 
-Paste this into your MCP client config and start querying intents data. See [Installation](/lifi-intents/mcp-server/installation) for tool-specific setup instructions.
+Paste this into your MCP client config and start querying intents data. See [Installation](https://docs.li.fi/lifi-intents/mcp-server/installation.md) for tool-specific setup instructions.
 
 The `x-api-key` header is only required for solver tooling. If you have a Solver API key, set it as `x-api-key` in `headers`; otherwise remove the field.
 
 ## How It Works
 
-The MCP server wraps the LI.FI Intents REST API into MCP-compatible tools that AI agents can call directly. Instead of constructing HTTP requests, your AI tool discovers and invokes structured tools like `request-quote`, `prepare-order`, and `submit-standing-quotes`.
+The MCP server wraps the LI.FI Intents REST API into MCP-compatible tools that AI agents can call directly. Instead of constructing HTTP requests, your AI tool discovers and calls structured tools like `request-quote`, `prepare-order`, and `submit-standing-quotes`.
 
 ```
 AI Tool (Claude, Cursor, etc.)
@@ -66,7 +66,7 @@ A typical cross-chain swap via the MCP server follows this flow:
 3. prepare-order                 # Build order structure (unsigned)
 4. (external) Sign the order using EIP-712 typed data signing
 5. submit-order                  # Submit signed order to the order server
-6. track-order                   # Monitor: Submitted -> Open -> Signed -> Delivered -> Settled
+6. track-order                   # Monitor: Signed -> Delivered -> Settled
 ```
 
 ## API Key Configuration
@@ -78,53 +78,46 @@ Without an API key, only **integrator tools** are available (read-only operation
 3. Copy your API key from the dashboard
 4. Add it in `"headers"` as `x-api-key` in your MCP config
 
-<Card title="Get a Solver API Key" icon="key" href="https://intents.li.fi">
-  Register at intents.li.fi to get your solver API key
-</Card>
+> [card] [Get a Solver API Key](https://intents.li.fi)
+>
+> Register at intents.li.fi to get your solver API key
 
 ## Environments
 
-| Environment | MCP Server URL                          | Order Server              | Chains                                                             |
-| ----------- | --------------------------------------- | ------------------------- | ------------------------------------------------------------------ |
-| **Mainnet** | `https://intents-mcp.li.fi/mcp`         | `https://order.li.fi`     | Ethereum, Base, Arbitrum, Optimism, + more                         |
+| Environment | MCP Server URL | Order Server | Chains |
+| - | - | - | - |
+| **Mainnet** | `https://intents-mcp.li.fi/mcp` | `https://order.li.fi` | Ethereum, Base, Arbitrum, Optimism, + more |
 | **Testnet** | `https://intents-mcp-testnet.li.fi/mcp` | `https://order-dev.li.fi` | Ethereum Sepolia, Base Sepolia, Optimism Sepolia, Arbitrum Sepolia |
 
 ## Contract Addresses
 
 Shared across testnet and mainnet:
 
-| Contract                       | Address                                      |
-| ------------------------------ | -------------------------------------------- |
-| **Escrow Settler**             | `0x000025c3226C00B2Cdc200005a1600509f4e00C0` |
-| **Compact Settler**            | `0x0000000000cd5f7fDEc90a03a31F79E5Fbc6A9Cf` |
-| **Multichain Escrow Settler**  | `0xb912b4c38ab54b94D45Ac001484dEBcbb519Bc2B` |
-| **Multichain Compact Settler** | `0x1fccC0807F25A58eB531a0B5b4bf3dCE88808Ed7` |
-| **CoinFiller**                 | `0x0000000000eC36B683C2E6AC89e9A75989C22a2e` |
-| **The Compact**                | `0x00000000000000171ede64904551eeDF3C6C9788` |
+| Contract | Address |
+| - | - |
+| **Escrow Settler** | `0x00fC00edbe7C003b006f870068c548940000223e` |
+| **Output Settler** (`OutputSettlerSimple`) | `0x75220B7600c300005038432a0000f308e0000068` |
 
 **Polymer Oracle** differs by environment:
 
-| Environment | Oracle Address                               |
-| ----------- | -------------------------------------------- |
-| Testnet     | `0xC401b53377b8A71A7cEB820e6a4dC53832343a90` |
-| Mainnet     | `0x0000003E06000007A224AeE90052fA6bb46d43C9` |
+| Environment | Oracle Address |
+| - | - |
+| Testnet | `0xC401b53377b8A71A7cEB820e6a4dC53832343a90` |
+| Mainnet | `0x008C3800F3Ad9b3B662d002E90Cc00000000eE17` |
 
 ## Next Steps
 
-<CardGroup cols={2}>
-  <Card title="Installation" icon="download" href="/lifi-intents/mcp-server/installation">
-    Setup instructions for Claude, Cursor, Windsurf, VS Code, and more
-  </Card>
+> [card] [Installation](https://docs.li.fi/lifi-intents/mcp-server/installation.md)
+>
+> Setup instructions for Claude, Cursor, Windsurf, VS Code, and more
 
-  <Card title="Available Tools" icon="wrench" href="/lifi-intents/mcp-server/tools">
-    Complete reference for all integrator and solver tools
-  </Card>
+> [card] [Available Tools](https://docs.li.fi/lifi-intents/mcp-server/tools.md)
+>
+> Complete reference for all integrator and solver tools
 
-  <Card title="Examples" icon="code" href="/lifi-intents/mcp-server/examples">
-    Example workflows, prompts, and settlement flow
-  </Card>
+> [card] [Examples](https://docs.li.fi/lifi-intents/mcp-server/examples.md)
+>
+> Example workflows, prompts, and settlement flow
 
-  <Card title="GitHub Repository" icon="github" href="https://github.com/lifinance/lifi-intents-mcp">
-    Source code and self-hosting instructions
-  </Card>
-</CardGroup>
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.
